@@ -32,6 +32,11 @@ from app.services.auth_service import (
     get_user_by_id,
 )
 
+from fastapi import Request
+
+from app.core.security import generate_totp_secret, get_totp_uri, verify_totp_code
+from app.services.auth_service import log_security_event
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -50,17 +55,26 @@ async def register(payload: UserRegister, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenPair)
-async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)):
+async def login(payload: LoginWith2FA, request: Request, db: AsyncSession = Depends(get_db)):
     user = await authenticate_user(db, payload.email, payload.password)
+    ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
 
+    if user.is_2fa_enabled:
+        if not payload.totp_code or not verify_totp_code(user.totp_secret, payload.totp_code):
+            await log_security_event(db, user.id, "login_failed_2fa", ip, user_agent)
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing 2FA code")
+
+    await log_security_event(db, user.id, "login", ip, user_agent)
+
     access_token = create_access_token(subject=str(user.id))
     refresh_token = create_refresh_token(subject=str(user.id))
     return TokenPair(access_token=access_token, refresh_token=refresh_token)
-
 
 @router.get("/me", response_model=UserOut)
 async def read_current_user(current_user: User = Depends(get_current_user)):

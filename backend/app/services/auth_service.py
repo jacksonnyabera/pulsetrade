@@ -26,3 +26,13 @@ async def authenticate_user(db: AsyncSession, email: str, password: str) -> User
     if user is None or not verify_password(password, user.hashed_password):
         return None
     return user
+
+from app.models.security_event import SecurityEvent
+
+
+async def log_security_event(
+    db: AsyncSession, user_id: uuid.UUID, event_type: str, ip_address: str | None = None, user_agent: str | None = None
+) -> None:
+    event = SecurityEvent(user_id=user_id, event_type=event_type, ip_address=ip_address, user_agent=user_agent)
+    db.add(event)
+    await db.commit()

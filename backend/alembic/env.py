@@ -14,6 +14,8 @@ from app.core.config import settings
 from app.core.database import Base
 from app.models.user import User  # noqa: F401  (ensures model is registered)
 
+from app.models.security_event import SecurityEvent  # noqa: F401
+
 sync_database_url = settings.database_url.replace("+asyncpg", "+psycopg2")
 
 # this is the Alembic Config object, which provides

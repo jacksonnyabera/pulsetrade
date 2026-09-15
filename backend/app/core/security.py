@@ -4,6 +4,7 @@ from jose import jwt
 from passlib.context import CryptContext
 
 from app.core.config import settings
+import pyotp
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -41,3 +42,14 @@ def create_password_reset_token(user_id: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(hours=1)
     payload = {"sub": user_id, "exp": expire, "type": "password_reset"}
     return jwt.encode(payload, settings.secret_key, algorithm="HS256")
+
+def generate_totp_secret() -> str:
+    return pyotp.random_base32()
+
+
+def get_totp_uri(secret: str, email: str) -> str:
+    return pyotp.totp.TOTP(secret).provisioning_uri(name=email, issuer_name="PulseTrade")
+
+
+def verify_totp_code(secret: str, code: str) -> bool:
+    return pyotp.totp.TOTP(secret).verify(code, valid_window=1)
