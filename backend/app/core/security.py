@@ -30,3 +30,14 @@ def create_refresh_token(subject: str) -> str:
 
 def decode_token(token: str) -> dict:
     return jwt.decode(token, settings.secret_key, algorithms=["HS256"])
+
+def create_email_verification_token(user_id: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(hours=24)
+    payload = {"sub": user_id, "exp": expire, "type": "email_verify"}
+    return jwt.encode(payload, settings.secret_key, algorithm="HS256")
+
+
+def create_password_reset_token(user_id: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(hours=1)
+    payload = {"sub": user_id, "exp": expire, "type": "password_reset"}
+    return jwt.encode(payload, settings.secret_key, algorithm="HS256")
