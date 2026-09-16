@@ -15,6 +15,12 @@ from app.core.database import Base
 from app.models.user import User  # noqa: F401  (ensures model is registered)
 
 from app.models.security_event import SecurityEvent  # noqa: F401
+from app.models.session import Session  # noqa: F401
+
+from app.models.session import Session  # noqa: F401
+from app.models.deriv_account import DerivAccount  # noqa: F401
+from app.models.api_token import ApiToken  # noqa: F401
+from app.models.audit_log import AuditLog  # noqa: F401
 
 sync_database_url = settings.database_url.replace("+asyncpg", "+psycopg2")
 

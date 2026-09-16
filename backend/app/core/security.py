@@ -5,6 +5,7 @@ from passlib.context import CryptContext
 
 from app.core.config import settings
 import pyotp
+import uuid as uuid_module
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -23,11 +24,12 @@ def create_access_token(subject: str) -> str:
     return jwt.encode(payload, settings.secret_key, algorithm="HS256")
 
 
-def create_refresh_token(subject: str) -> str:
+def create_refresh_token(subject: str) -> tuple[str, str]:
+    jti = str(uuid_module.uuid4())
     expire = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
-    payload = {"sub": subject, "exp": expire, "type": "refresh"}
-    return jwt.encode(payload, settings.secret_key, algorithm="HS256")
-
+    payload = {"sub": subject, "exp": expire, "type": "refresh", "jti": jti}
+    token = jwt.encode(payload, settings.secret_key, algorithm="HS256")
+    return token, jti
 
 def decode_token(token: str) -> dict:
     return jwt.decode(token, settings.secret_key, algorithms=["HS256"])

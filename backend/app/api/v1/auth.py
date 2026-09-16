@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,30 +12,33 @@ from app.core.security import (
     create_password_reset_token,
     create_refresh_token,
     decode_token,
+    generate_totp_secret,
+    get_totp_uri,
     hash_password,
+    verify_totp_code,
 )
 from app.models.user import User
 from app.schemas.auth import (
+    LoginWith2FA,
     PasswordResetConfirm,
     PasswordResetRequest,
     RefreshRequest,
     TokenPair,
-    UserLogin,
+    TwoFactorSetupResponse,
+    TwoFactorVerifyRequest,
     UserOut,
     UserRegister,
     VerifyEmailRequest,
 )
 from app.services.auth_service import (
     authenticate_user,
+    create_session,
     create_user,
     get_user_by_email,
     get_user_by_id,
+    log_security_event,
+    revoke_session_by_jti,
 )
-
-from fastapi import Request
-
-from app.core.security import generate_totp_secret, get_totp_uri, verify_totp_code
-from app.services.auth_service import log_security_event
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -73,7 +76,8 @@ async def login(payload: LoginWith2FA, request: Request, db: AsyncSession = Depe
     await log_security_event(db, user.id, "login", ip, user_agent)
 
     access_token = create_access_token(subject=str(user.id))
-    refresh_token = create_refresh_token(subject=str(user.id))
+    refresh_token, jti = create_refresh_token(subject=str(user.id))
+    await create_session(db, user.id, jti, request)
     return TokenPair(access_token=access_token, refresh_token=refresh_token)
 
 @router.get("/me", response_model=UserOut)
@@ -82,7 +86,7 @@ async def read_current_user(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/refresh", response_model=TokenPair)
-async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)):
+async def refresh(payload: RefreshRequest, request: Request, db: AsyncSession = Depends(get_db)):
     invalid_token = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
     try:
         decoded = decode_token(payload.refresh_token)
@@ -96,8 +100,13 @@ async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)):
     if user is None or not user.is_active:
         raise invalid_token
 
+    old_jti = decoded.get("jti")
+    if old_jti:
+        await revoke_session_by_jti(db, old_jti)
+
     new_access = create_access_token(subject=str(user.id))
-    new_refresh = create_refresh_token(subject=str(user.id))
+    new_refresh, new_jti = create_refresh_token(subject=str(user.id))
+    await create_session(db, user.id, new_jti, request)
     return TokenPair(access_token=new_access, refresh_token=new_refresh)
 
 
@@ -150,3 +159,33 @@ async def reset_password(payload: PasswordResetConfirm, db: AsyncSession = Depen
     user.hashed_password = hash_password(payload.new_password)
     await db.commit()
     return {"message": "Password reset successfully"}
+
+@router.post("/2fa/setup", response_model=TwoFactorSetupResponse)
+async def setup_2fa(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    secret = generate_totp_secret()
+    current_user.totp_secret = secret
+    await db.commit()
+    return TwoFactorSetupResponse(secret=secret, provisioning_uri=get_totp_uri(secret, current_user.email))
+
+
+@router.post("/2fa/enable")
+async def enable_2fa(
+    payload: TwoFactorVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not current_user.totp_secret or not verify_totp_code(current_user.totp_secret, payload.code):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid code")
+    current_user.is_2fa_enabled = True
+    await db.commit()
+    await log_security_event(db, current_user.id, "2fa_enabled")
+    return {"message": "2FA enabled"}
+
+
+@router.post("/2fa/disable")
+async def disable_2fa(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    current_user.is_2fa_enabled = False
+    current_user.totp_secret = None
+    await db.commit()
+    await log_security_event(db, current_user.id, "2fa_disabled")
+    return {"message": "2FA disabled"}
