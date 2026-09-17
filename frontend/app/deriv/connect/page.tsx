@@ -8,8 +8,8 @@ export default function ConnectDerivPage() {
     const codeChallenge = await generateCodeChallenge(codeVerifier);
     const state = generateState();
 
-    sessionStorage.setItem("pkce_code_verifier", codeVerifier);
-    sessionStorage.setItem("oauth_state", state);
+    localStorage.setItem("pkce_code_verifier", codeVerifier);
+    localStorage.setItem("oauth_state", state);
 
     const params = new URLSearchParams({
       response_type: "code",
