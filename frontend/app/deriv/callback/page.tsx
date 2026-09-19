@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function DerivCallbackPage() {
+function DerivCallbackInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"processing" | "error" | "success">("processing");
@@ -91,5 +91,19 @@ export default function DerivCallbackPage() {
         </>
       )}
     </main>
+  );
+}
+
+export default function DerivCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 text-white">
+          <p>Loading...</p>
+        </main>
+      }
+    >
+      <DerivCallbackInner />
+    </Suspense>
   );
 }
