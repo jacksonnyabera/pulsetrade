@@ -10,8 +10,7 @@ app = FastAPI(title=settings.app_name)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
-        "https://cheddar-reopen-washcloth.ngrok-free.dev",
+        "https://pulsetrade-phi.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
