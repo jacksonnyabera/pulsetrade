@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     deriv_token_url: str = "https://auth.deriv.com/oauth2/token"
     deriv_api_base: str = "https://api.derivws.com"
     token_encryption_key: str
+    redis_url: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
