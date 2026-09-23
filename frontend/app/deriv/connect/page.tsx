@@ -14,10 +14,6 @@ export default function ConnectDerivPage() {
   }, [router]);
 
   const handleConnect = async () => {
-    // ... (unchanged from before)
-
-export default function ConnectDerivPage() {
-  const handleConnect = async () => {
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = await generateCodeChallenge(codeVerifier);
     const state = generateState();
