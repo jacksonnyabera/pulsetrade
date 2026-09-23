@@ -1,6 +1,20 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { generateCodeChallenge, generateCodeVerifier, generateState } from "@/lib/pkce";
+
+export default function ConnectDerivPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!localStorage.getItem("pulsetrade_access_token")) {
+      router.push("/login");
+    }
+  }, [router]);
+
+  const handleConnect = async () => {
+    // ... (unchanged from before)
 
 export default function ConnectDerivPage() {
   const handleConnect = async () => {
