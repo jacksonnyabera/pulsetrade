@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.auth import router as auth_router
 from app.api.v1.deriv import router as deriv_router
 from app.core.config import settings
+from app.api.v1.market import router as market_router
 
 app = FastAPI(title=settings.app_name)
 
