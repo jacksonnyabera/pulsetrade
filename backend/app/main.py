@@ -20,7 +20,7 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(deriv_router, prefix="/api/v1")
-
+app.include_router(market_router, prefix="/api/v1")
 
 @app.get("/health")
 async def health_check():
