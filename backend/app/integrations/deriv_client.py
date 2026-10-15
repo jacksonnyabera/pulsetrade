@@ -28,3 +28,22 @@ async def get_deriv_accounts(access_token: str) -> dict:
         )
         response.raise_for_status()
         return response.json()
+
+async def list_options_accounts(access_token: str) -> dict:
+    async with httpx.AsyncClient(timeout=15) as client:
+        response = await client.get(
+            f"{settings.deriv_api_base}/trading/v1/options/accounts",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+async def get_options_ws_url(access_token: str, account_id: str) -> str:
+    async with httpx.AsyncClient(timeout=15) as client:
+        response = await client.post(
+            f"{settings.deriv_api_base}/trading/v1/options/accounts/{account_id}/otp",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        response.raise_for_status()
+        return response.json()["data"]["url"]

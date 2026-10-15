@@ -23,7 +23,6 @@ from app.models.api_token import ApiToken  # noqa: F401
 from app.models.audit_log import AuditLog  # noqa: F401
 
 sync_database_url = settings.database_url.replace("+asyncpg", "+psycopg2")
-
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config

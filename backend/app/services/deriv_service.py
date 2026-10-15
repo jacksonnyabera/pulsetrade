@@ -6,6 +6,9 @@ from app.core.encryption import encrypt_token
 from app.integrations.deriv_client import exchange_code_for_token, get_deriv_accounts
 from app.models.api_token import ApiToken
 from app.models.deriv_account import DerivAccount
+from sqlalchemy import select
+
+from app.core.encryption import decrypt_token
 
 
 async def connect_deriv_account(db: AsyncSession, user_id: uuid.UUID, code: str, code_verifier: str) -> DerivAccount:
@@ -34,3 +37,17 @@ async def connect_deriv_account(db: AsyncSession, user_id: uuid.UUID, code: str,
     await db.commit()
     await db.refresh(deriv_account)
     return deriv_account
+
+async def get_active_account_and_token(db: AsyncSession, user_id: uuid.UUID):
+    result = await db.execute(
+        select(DerivAccount, ApiToken)
+        .join(ApiToken, ApiToken.deriv_account_id == DerivAccount.id)
+        .where(DerivAccount.user_id == user_id, DerivAccount.is_active.is_(True))
+        .order_by(DerivAccount.connected_at.desc())
+        .limit(1)
+    )
+    row = result.first()
+    if row is None:
+        return None
+    account, token = row
+    return account, decrypt_token(token.encrypted_token)

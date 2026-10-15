@@ -12,3 +12,11 @@ class DerivAccountOut(BaseModel):
     account_type: str
     currency: str
     is_active: bool
+
+
+class WsUrlRequest(BaseModel):
+    account_id: str | None = None
+
+
+class WsUrlResponse(BaseModel):
+    url: str
