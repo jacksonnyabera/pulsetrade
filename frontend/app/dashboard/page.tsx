@@ -33,7 +33,11 @@ export default function DashboardPage() {
       <p className="text-neutral-400">Role: {user.role}</p>
       <a href="/deriv/connect" className="text-emerald-400 hover:underline">
         Connect your Deriv account →
+              <a href="/trade" className="text-emerald-400 hover:underline">
+        Open trading screen →
+      </a>
       </a>
     </main>
   );
 }
+
