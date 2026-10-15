@@ -6,8 +6,12 @@ from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.integrations.deriv_client import get_options_ws_url, list_options_accounts
 from app.models.user import User
-from app.schemas.deriv import DerivAccountOut, DerivCallbackRequest, WsUrlRequest, WsUrlResponse
-from app.services.deriv_service import connect_deriv_account, get_active_account_and_token
+from app.schemas.deriv import DerivAccountOut, DerivCallbackRequest, WsUrlResponse
+from app.services.deriv_service import (
+    connect_deriv_account,
+    get_active_account_and_token,
+    pick_demo_account,
+)
 
 router = APIRouter(prefix="/deriv", tags=["deriv"])
 
@@ -33,7 +37,7 @@ async def deriv_callback(
 
 @router.get("/accounts/raw")
 async def raw_accounts(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    # Temporary debug endpoint: shows Deriv's real response shape. Remove once the UI is built.
+    # Temporary debug endpoint. Remove once the UI is finished.
     found = await get_active_account_and_token(db, current_user.id)
     if found is None:
         raise HTTPException(status_code=404, detail="No Deriv account connected")
@@ -45,19 +49,28 @@ async def raw_accounts(current_user: User = Depends(get_current_user), db: Async
 
 
 @router.post("/ws-url", response_model=WsUrlResponse)
-async def ws_url(
-    payload: WsUrlRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
+async def ws_url(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     found = await get_active_account_and_token(db, current_user.id)
     if found is None:
         raise HTTPException(status_code=404, detail="No Deriv account connected")
     account, token = found
+
     try:
-        url = await get_options_ws_url(token, payload.account_id or account.deriv_loginid)
+        demo = pick_demo_account(await list_options_accounts(token))
+        url = await get_options_ws_url(token, demo["account_id"])
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=409, detail=f"Deriv returned {e.response.status_code}. Try reconnecting.")
+
+    # Beta safety rule: demo only
     if "/ws/demo" not in url:
         raise HTTPException(status_code=403, detail="Only demo accounts are enabled during beta")
+
+    # Repair the saved record if it was stored incorrectly earlier
+    account.deriv_loginid = demo["account_id"]
+    account.account_type = "demo"
+    account.currency = demo.get("currency", account.currency)
+    await db.commit()
+
     return WsUrlResponse(url=url)
