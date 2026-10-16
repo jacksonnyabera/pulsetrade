@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -30,39 +31,36 @@ export default function RegisterPage() {
     }
   };
 
+  const inputClass =
+    "bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-3 outline-none focus:border-emerald-500";
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 text-white px-4">
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold mb-6">Create your PulseTrade account</h1>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <input
-            type="text"
-            placeholder="Full name (optional)"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            className="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-3 outline-none focus:border-emerald-500"
-          />
-          <input
-            type="email"
-            placeholder="Email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-3 outline-none focus:border-emerald-500"
-          />
-          <input
-            type="password"
-            placeholder="Password (min 8 characters)"
-            required
-            minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="bg-neutral-900 border border-neutral-800 rounded-lg px-4 py-3 outline-none focus:border-emerald-500"
-          />
+          <input type="text" placeholder="Full name (optional)" value={fullName}
+            onChange={(e) => setFullName(e.target.value)} className={inputClass} />
+          <input type="email" placeholder="Email" required value={email}
+            onChange={(e) => setEmail(e.target.value)} className={inputClass} />
+          <input type="password" placeholder="Password (min 8 characters)" required minLength={8} value={password}
+            onChange={(e) => setPassword(e.target.value)} className={inputClass} />
+
+          <label className="flex items-start gap-2 text-sm text-neutral-400">
+            <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1" />
+            <span>
+              I am 18 or older, I have read the{" "}
+              <Link href="/terms" className="text-emerald-400 hover:underline">Terms</Link>,{" "}
+              <Link href="/privacy" className="text-emerald-400 hover:underline">Privacy Policy</Link> and{" "}
+              <Link href="/risk-disclosure" className="text-emerald-400 hover:underline">Risk Disclosure</Link>, and I
+              understand I can lose money trading.
+            </span>
+          </label>
+
           {error && <p className="text-red-400 text-sm">{error}</p>}
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !agreed}
             className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-black font-semibold py-3 rounded-lg"
           >
             {loading ? "Creating account..." : "Create account"}
@@ -70,9 +68,7 @@ export default function RegisterPage() {
         </form>
         <p className="text-neutral-400 text-sm mt-4">
           Already have an account?{" "}
-          <Link href="/login" className="text-emerald-400 hover:underline">
-            Log in
-          </Link>
+          <Link href="/login" className="text-emerald-400 hover:underline">Log in</Link>
         </p>
       </div>
     </main>
