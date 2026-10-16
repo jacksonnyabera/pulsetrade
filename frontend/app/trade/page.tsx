@@ -314,6 +314,11 @@ export default function TradePage() {
             </button>
 
             {error && <p className="text-red-400 text-sm">{error}</p>}
+            {/reconnect|no deriv account/i.test(error) && (
+              <a href="/deriv/connect" className="text-emerald-400 text-sm hover:underline">
+                Reconnect Deriv →
+              </a>
+            )}
             <p className="text-xs text-neutral-500">
               Demo account with virtual funds. Trading involves risk and you can lose your entire stake. No outcome is
               guaranteed.
