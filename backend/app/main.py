@@ -5,6 +5,7 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.deriv import router as deriv_router
 from app.core.config import settings
 from app.api.v1.market import router as market_router
+from app.api.v1.trades import router as trades_router
 
 app = FastAPI(title=settings.app_name)
 
@@ -21,7 +22,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(deriv_router, prefix="/api/v1")
 app.include_router(market_router, prefix="/api/v1")
-
+app.include_router(trades_router, prefix="/api/v1")
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "environment": settings.environment}

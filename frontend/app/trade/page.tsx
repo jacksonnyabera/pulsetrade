@@ -128,6 +128,10 @@ export default function TradePage() {
             const poc = msg.proposal_open_contract;
             if (poc.is_sold) {
               const profit = Number(poc.profit);
+              apiFetch(`/api/v1/trades/${Number(poc.contract_id)}/settle`, {
+                method: "POST",
+                body: JSON.stringify({ profit }),
+              }).catch(() => {});
               setTrades((prev) =>
                 prev.map((t) =>
                   t.contractId === Number(poc.contract_id)
@@ -214,6 +218,18 @@ export default function TradePage() {
       });
       const contractId = Number(bought.buy.contract_id);
       setTrades((prev) => [{ contractId, side, symbol, stake, status: "open" }, ...prev]);
+      apiFetch("/api/v1/trades", {
+        method: "POST",
+        body: JSON.stringify({
+          contract_id: contractId,
+          symbol,
+          contract_type: side,
+          stake,
+          currency,
+          duration,
+          duration_unit: unit,
+        }),
+      }).catch(() => {});
       send({ proposal_open_contract: 1, contract_id: contractId, subscribe: 1 }).catch((e) => setError(e.message));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Trade failed");
