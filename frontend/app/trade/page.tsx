@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { ColorType, LineSeries, createChart, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
 import { apiFetch } from "@/lib/api";
 
+const PUBLIC_WS = "wss://api.derivws.com/trading/v1/options/ws/public";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Msg = Record<string, any>;
 type Side = "CALL" | "PUT";
@@ -28,9 +30,10 @@ export default function TradePage() {
   const chartEl = useRef<HTMLDivElement | null>(null);
   const seriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const lastTime = useRef(0);
-  const symbolRef = useRef("1HZ100V");
 
   const [connected, setConnected] = useState(false);
+  const [feed, setFeed] = useState<"connecting" | "live" | "error">("connecting");
+  const [feedError, setFeedError] = useState("");
   const [error, setError] = useState("");
   const [balance, setBalance] = useState<number | null>(null);
   const [currency, setCurrency] = useState<string | null>(null);
@@ -55,7 +58,7 @@ export default function TradePage() {
       ws.send(JSON.stringify({ ...payload, req_id: id }));
     });
 
-  // Chart (always mounted so the container exists)
+  // Chart
   useEffect(() => {
     if (!chartEl.current) return;
     const chart = createChart(chartEl.current, {
@@ -71,7 +74,63 @@ export default function TradePage() {
     };
   }, []);
 
-  // Connect: backend gives a short-lived demo WebSocket URL, browser connects to Deriv directly
+  // Public price feed (no login needed), one connection per selected symbol
+  useEffect(() => {
+    let cancelled = false;
+    let gotTick = false;
+    let ws: WebSocket | null = null;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+
+    seriesRef.current?.setData([]);
+    lastTime.current = 0;
+    setPrice(null);
+    setFeed("connecting");
+    setFeedError("");
+
+    const watchdog = setTimeout(() => {
+      if (!gotTick && !cancelled) {
+        setFeed("error");
+        setFeedError("No price data received. The price feed may be unreachable or this market may be closed.");
+      }
+    }, 10000);
+
+    const open = () => {
+      ws = new WebSocket(PUBLIC_WS);
+      ws.onopen = () => ws?.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+      ws.onmessage = (event) => {
+        const msg: Msg = JSON.parse(event.data);
+        if (msg.error) {
+          setFeed("error");
+          setFeedError(msg.error.message ?? "Price feed error");
+          return;
+        }
+        if (msg.msg_type === "tick" && msg.tick) {
+          gotTick = true;
+          const t = Number(msg.tick.epoch);
+          const value = Number(msg.tick.quote);
+          setFeed("live");
+          setPrice(value);
+          if (t >= lastTime.current && seriesRef.current) {
+            lastTime.current = t;
+            seriesRef.current.update({ time: t as UTCTimestamp, value });
+          }
+        }
+      };
+      ws.onclose = () => {
+        if (!cancelled) retry = setTimeout(open, 3000);
+      };
+    };
+    open();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(watchdog);
+      clearTimeout(retry);
+      ws?.close();
+    };
+  }, [symbol]);
+
+  // Trading connection: backend gives a short-lived demo WebSocket URL
   useEffect(() => {
     if (!localStorage.getItem("pulsetrade_access_token")) {
       router.push("/login");
@@ -112,18 +171,6 @@ export default function TradePage() {
             setCurrency(String(msg.balance.currency));
           }
 
-          if (msg.msg_type === "tick" && msg.tick) {
-            const tickSymbol = msg.tick.underlying_symbol ?? msg.tick.symbol;
-            if (tickSymbol && tickSymbol !== symbolRef.current) return;
-            const t = Number(msg.tick.epoch);
-            const value = Number(msg.tick.quote);
-            setPrice(value);
-            if (t >= lastTime.current && seriesRef.current) {
-              lastTime.current = t;
-              seriesRef.current.update({ time: t as UTCTimestamp, value });
-            }
-          }
-
           if (msg.msg_type === "proposal_open_contract" && msg.proposal_open_contract) {
             const poc = msg.proposal_open_contract;
             if (poc.is_sold) {
@@ -155,19 +202,7 @@ export default function TradePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
-  // Tick subscription follows the selected symbol
-  useEffect(() => {
-    if (!connected) return;
-    symbolRef.current = symbol;
-    lastTime.current = 0;
-    seriesRef.current?.setData([]);
-    setPrice(null);
-    send({ forget_all: "ticks" }).catch(() => {});
-    send({ ticks: symbol, subscribe: 1 }).catch((e) => setError(e.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, symbol]);
-
-  // Payout quotes for both buttons, refreshed when inputs change
+  // Payout quotes for both buttons
   useEffect(() => {
     if (!connected || !currency) return;
     const handle = setTimeout(async () => {
@@ -246,13 +281,16 @@ export default function TradePage() {
       <div className="max-w-5xl mx-auto flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-xl font-bold">Trade (demo account)</h1>
-          <div className="text-sm text-neutral-400">
-            {connected ? "Connected" : "Connecting..."}
+          <div className="text-sm text-neutral-400 flex items-center gap-3">
+            <span>{connected ? "Trading connected" : "Trading connecting..."}</span>
             {balance !== null && currency && (
-              <span className="ml-3 text-white font-semibold">
+              <span className="text-white font-semibold">
                 Balance: {balance.toFixed(2)} {currency}
               </span>
             )}
+            <a href="/history" className="text-emerald-400 hover:underline">
+              History
+            </a>
           </div>
         </div>
 
@@ -268,7 +306,14 @@ export default function TradePage() {
               </select>
               <span className="text-3xl font-mono">{price !== null ? price : "--"}</span>
             </div>
-            <div ref={chartEl} className="h-72 w-full rounded-lg overflow-hidden border border-neutral-800" />
+            <div className="relative h-72 w-full rounded-lg overflow-hidden border border-neutral-800">
+              <div ref={chartEl} className="absolute inset-0" />
+              {feed !== "live" && (
+                <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-neutral-400 pointer-events-none">
+                  {feed === "connecting" ? "Loading prices..." : feedError}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col gap-3 bg-neutral-900 border border-neutral-800 rounded-lg p-4">
